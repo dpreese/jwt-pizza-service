@@ -1,8 +1,9 @@
 /* eslint-env jest */
 
 const jwt = require('jsonwebtoken');
-const { authRouter, setAuthUser } = require('./authRouter'); // Import setAuthUser
+const { authRouter, setAuthUser, clearAuth } = require('./authRouter'); // Import setAuthUser
 const { DB } = require('../database/database.js');
+const { StatusCodeError } = require('../endpointHelper');
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
@@ -22,6 +23,18 @@ jest.mock('../database/database.js', () => ({
   }
 }));
 
+describe('StatusCodeError', () => {
+    it('should set message and statusCode correctly', () => {
+      const testMessage = 'Test error message';
+      const testStatusCode = 404;
+  
+      const error = new StatusCodeError(testMessage, testStatusCode);
+  
+      expect(error.message).toBe(testMessage);
+      expect(error.statusCode).toBe(testStatusCode);
+    });
+});
+
 describe('authRouter', () => {
   let req, res, next;
 
@@ -36,7 +49,34 @@ describe('authRouter', () => {
     jest.clearAllMocks();
   });
 
-  // New tests for setAuthUser
+  describe('authenticateToken', () => {
+    it('should return 401 if req.user is missing', () => {
+      const req = {}; // req.user is undefined
+      const res = {
+        status: jest.fn(() => res),
+        send: jest.fn(),
+      };
+      const next = jest.fn();
+  
+      authRouter.authenticateToken(req, res, next);
+  
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.send).toHaveBeenCalledWith({ message: 'unauthorized' });
+      expect(next).not.toHaveBeenCalled();
+    });
+  
+    it('should call next if req.user is present', () => {
+      const req = { user: { id: 1, roles: [{ role: 'admin' }] } }; // Simulate an authenticated user
+      const res = {};
+      const next = jest.fn();
+  
+      authRouter.authenticateToken(req, res, next);
+  
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+
   describe('setAuthUser', () => {
     const mockToken = 'testToken';
     const mockUser = { id: 1, roles: [{ role: 'admin' }] };
@@ -86,7 +126,27 @@ describe('authRouter', () => {
     });
   });
 
-  // Existing route tests
+  describe('clearAuth', () => {
+    it('should call DB.logoutUser if token is present', async () => {
+      const mockToken = 'testToken';
+      req.headers = { authorization: `Bearer ${mockToken}` };
+      DB.logoutUser.mockResolvedValue();
+  
+      await clearAuth(req);
+  
+      expect(DB.logoutUser).toHaveBeenCalledWith(mockToken);
+    });
+  
+    it('should not call DB.logoutUser if token is missing', async () => {
+      req.headers = {}; // No token present
+  
+      await clearAuth(req);
+  
+      expect(DB.logoutUser).not.toHaveBeenCalled();
+    });
+  });
+  
+
   describe('POST /api/auth (register)', () => {
     it('should return 400 if name, email, or password is missing', async () => {
       const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.post).route.stack[0].handle;
@@ -140,6 +200,23 @@ describe('authRouter', () => {
   });
 
   describe('PUT /api/auth/:userId (update user)', () => {
+    it('should return 403 if user is not authorized to update', async () => {
+        req.user = { id: 2, roles: [{ role: 'diner' }], isRole: jest.fn((role) => role === 'admin' ? false : true) };
+        req.params = { userId: '1' }; // Target user ID does not match req.user.id
+        req.body = { email: 'newemail@test.com', password: 'newpassword' };
+    
+        const handler = authRouter.stack.find(r => r.route.path === '/:userId' && r.route.methods.put).route.stack[0].handle;
+        
+        // Debugging: log req.user and req.params
+        console.log('req.user:', req.user);
+        console.log('req.params:', req.params);
+    
+        await handler(req, res, next);
+    
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({ message: 'unauthorized' });
+    });
+
     it('should update user if authenticated and authorized', async () => {
       req.user = { id: 1, roles: [{ role: 'admin' }] };
       req.params = { userId: '1' };
