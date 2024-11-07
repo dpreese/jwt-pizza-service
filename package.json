@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "cd src && node index.js",
-    "lint": "eslint ."
+    "lint": "lint"
   },
   "license": "MIT",
   "dependencies": {
