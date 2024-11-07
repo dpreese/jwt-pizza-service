@@ -4,8 +4,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "cd src && node index.js",
-    "lint": "eslint ."
+    "start": "cd src && node index.js"
   },
   "license": "MIT",
   "dependencies": {
