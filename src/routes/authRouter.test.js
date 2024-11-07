@@ -1,7 +1,8 @@
+/* eslint-env jest */
+
 const jwt = require('jsonwebtoken');
-const { authRouter, setAuthUser } = require('./authRouter');
-const config = require('../config.js');
-const { DB, Role } = require('../database/database.js');
+const { authRouter } = require('./authRouter');
+const { DB } = require('../database/database.js');
 
 // Mock dependencies
 jest.mock('jsonwebtoken');
@@ -29,7 +30,7 @@ describe('authRouter', () => {
     res = {
       status: jest.fn(() => res),
       json: jest.fn(),
-      send: jest.fn(), // Add the send function mock
+      send: jest.fn(),
     };
     next = jest.fn();
     jest.clearAllMocks();
@@ -77,9 +78,7 @@ describe('authRouter', () => {
 
   describe('DELETE /api/auth (logout)', () => {
     it('should log out a user with a valid token', async () => {
-      req.headers.authorization = 'Bearer testToken';
-      jwt.verify.mockReturnValue({ id: 1, roles: [{ role: 'admin' }] });
-      DB.isLoggedIn.mockResolvedValue(true);
+      req.user = { id: 1, roles: [{ role: 'admin' }] };
       DB.logoutUser.mockResolvedValue();
 
       const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.delete).route.stack[0].handle;
@@ -91,14 +90,11 @@ describe('authRouter', () => {
 
   describe('PUT /api/auth/:userId (update user)', () => {
     it('should update user if authenticated and authorized', async () => {
+      req.user = { id: 1, roles: [{ role: 'admin' }] };
       req.params = { userId: '1' };
       req.body = { email: 'newemail@test.com' };
-      req.headers.authorization = 'Bearer testToken';
-      const mockUser = { id: 1, roles: [{ role: 'admin' }] };
-      const updatedUser = { id: 1, email: 'newemail@test.com', roles: [{ role: 'admin' }] };
 
-      jwt.verify.mockReturnValue(mockUser);
-      DB.isLoggedIn.mockResolvedValue(true);
+      const updatedUser = { id: 1, email: 'newemail@test.com', roles: [{ role: 'admin' }] };
       DB.updateUser.mockResolvedValue(updatedUser);
 
       const handler = authRouter.stack.find(r => r.route.path === '/:userId' && r.route.methods.put).route.stack[0].handle;
