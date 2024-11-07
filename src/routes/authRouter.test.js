@@ -1,7 +1,7 @@
 /* eslint-env jest */
 
 const jwt = require('jsonwebtoken');
-const { authRouter } = require('./authRouter');
+const { authRouter, setAuthUser } = require('./authRouter'); // Import setAuthUser
 const { DB } = require('../database/database.js');
 
 // Mock dependencies
@@ -36,6 +36,57 @@ describe('authRouter', () => {
     jest.clearAllMocks();
   });
 
+  // New tests for setAuthUser
+  describe('setAuthUser', () => {
+    const mockToken = 'testToken';
+    const mockUser = { id: 1, roles: [{ role: 'admin' }] };
+
+    beforeEach(() => {
+      req = { headers: {} };
+      res = {};
+      next = jest.fn();
+    });
+
+    it('should call next if token is missing', async () => {
+      await setAuthUser(req, res, next);
+      expect(req.user).toBeUndefined();
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should set req.user if token is present and valid', async () => {
+      req.headers.authorization = `Bearer ${mockToken}`;
+      DB.isLoggedIn.mockResolvedValue(true); // Simulate that the token is logged in
+      jwt.verify.mockReturnValue(mockUser); // Simulate a valid token verification
+
+      await setAuthUser(req, res, next);
+
+      expect(req.user).toEqual(mockUser);
+      expect(req.user.isRole('admin')).toBe(true); // Check role assignment
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should leave req.user undefined if token verification fails', async () => {
+        req.headers.authorization = `Bearer ${mockToken}`;
+        DB.isLoggedIn.mockResolvedValue(false); // Simulate that the token is not logged in
+      
+        await setAuthUser(req, res, next);
+      
+        expect(req.user).toBeUndefined(); // Check for undefined instead of null
+        expect(next).toHaveBeenCalled();
+    });
+
+    it('should set req.user to null if an error occurs in verification', async () => {
+      req.headers.authorization = `Bearer ${mockToken}`;
+      DB.isLoggedIn.mockRejectedValue(new Error('Database error')); // Simulate a DB error
+
+      await setAuthUser(req, res, next);
+
+      expect(req.user).toBeNull();
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  // Existing route tests
   describe('POST /api/auth (register)', () => {
     it('should return 400 if name, email, or password is missing', async () => {
       const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.post).route.stack[0].handle;

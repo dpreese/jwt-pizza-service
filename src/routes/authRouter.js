@@ -92,9 +92,7 @@ authRouter.put(
 authRouter.delete(
   '/',
   asyncHandler(async (req, res) => {
-    console.log('Inside DELETE /api/auth'); // Debug statement
     await clearAuth(req);
-    console.log('After clearAuth'); // Debug statement
     res.json({ message: 'logout successful' });
   })
 );
@@ -103,16 +101,13 @@ authRouter.delete(
 authRouter.put(
   '/:userId',
   asyncHandler(async (req, res) => {
-    console.log('Inside PUT /api/auth/:userId'); // Debug statement
     const { email, password } = req.body;
     const userId = Number(req.params.userId);
     const user = req.user;
     if (user.id !== userId && !user.isRole(Role.Admin)) {
-      console.log('Unauthorized user'); // Debug statement
       return res.status(403).json({ message: 'unauthorized' });
     }
     const updatedUser = await DB.updateUser(userId, email, password);
-    console.log('After DB.updateUser', updatedUser); // Debug statement
     res.json(updatedUser);
   })
 );
