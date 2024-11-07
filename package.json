@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "cd src && node index.js",
-    "lint": "eslint"
+    "lint": "eslint ."
   },
   "license": "MIT",
   "dependencies": {
@@ -13,5 +13,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.9.7"
+  },
+  "devDependencies": {
+    "eslint": "^9.14.0"
   }
 }
