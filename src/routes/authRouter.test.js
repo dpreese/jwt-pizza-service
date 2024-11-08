@@ -1,234 +1,151 @@
-/* eslint-env jest */
-
+const request = require('supertest');
+const app = require('../service');
 const jwt = require('jsonwebtoken');
-const { authRouter, setAuthUser, clearAuth } = require('./authRouter'); // Import setAuthUser
-const { DB } = require('../database/database.js');
-const { StatusCodeError } = require('../endpointHelper');
+const config = require('../config.js');
+const { DB, Role } = require('../database/database.js');
 
-// Mock dependencies
-jest.mock('jsonwebtoken');
-jest.mock('../config.js', () => ({ jwtSecret: 'testSecret' }));
-jest.mock('../database/database.js', () => ({
-  DB: {
-    isLoggedIn: jest.fn(),
-    addUser: jest.fn(),
-    getUser: jest.fn(),
-    loginUser: jest.fn(),
-    logoutUser: jest.fn(),
-    updateUser: jest.fn(),
-  },
-  Role: {
-    Admin: 'admin',
-    Diner: 'diner',
-  }
-}));
+const testUser = { name: 'pizza diner', email: 'reg@test.com', password: 'a' };
+let testUserAuthToken;
 
-describe('StatusCodeError', () => {
-    it('should set message and statusCode correctly', () => {
-      const testMessage = 'Test error message';
-      const testStatusCode = 404;
+beforeAll(async () => {
+  testUser.email = Math.random().toString(36).substring(2, 12) + '@test.com';
+  const registerRes = await request(app).post('/api/auth').send(testUser);
+  testUserAuthToken = registerRes.body.token;
   
-      const error = new StatusCodeError(testMessage, testStatusCode);
-  
-      expect(error.message).toBe(testMessage);
-      expect(error.statusCode).toBe(testStatusCode);
-    });
+  expectValidJwt(testUserAuthToken);
 });
 
-describe('authRouter', () => {
-  let req, res, next;
-
-  beforeEach(() => {
-    req = { body: {}, headers: {} };
-    res = {
-      status: jest.fn(() => res),
-      json: jest.fn(),
-      send: jest.fn(),
-    };
-    next = jest.fn();
-    jest.clearAllMocks();
-  });
-
-  describe('authenticateToken', () => {
-    it('should return 401 if req.user is missing', () => {
-      const req = {}; // req.user is undefined
-      const res = {
-        status: jest.fn(() => res),
-        send: jest.fn(),
-      };
-      const next = jest.fn();
-  
-      authRouter.authenticateToken(req, res, next);
-  
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.send).toHaveBeenCalledWith({ message: 'unauthorized' });
-      expect(next).not.toHaveBeenCalled();
-    });
-  
-    it('should call next if req.user is present', () => {
-      const req = { user: { id: 1, roles: [{ role: 'admin' }] } }; // Simulate an authenticated user
-      const res = {};
-      const next = jest.fn();
-  
-      authRouter.authenticateToken(req, res, next);
-  
-      expect(next).toHaveBeenCalled();
-    });
-  });
-
-
-  describe('setAuthUser', () => {
-    const mockToken = 'testToken';
-    const mockUser = { id: 1, roles: [{ role: 'admin' }] };
-
-    beforeEach(() => {
-      req = { headers: {} };
-      res = {};
-      next = jest.fn();
-    });
-
-    it('should call next if token is missing', async () => {
-      await setAuthUser(req, res, next);
-      expect(req.user).toBeUndefined();
-      expect(next).toHaveBeenCalled();
-    });
-
-    it('should set req.user if token is present and valid', async () => {
-      req.headers.authorization = `Bearer ${mockToken}`;
-      DB.isLoggedIn.mockResolvedValue(true); // Simulate that the token is logged in
-      jwt.verify.mockReturnValue(mockUser); // Simulate a valid token verification
-
-      await setAuthUser(req, res, next);
-
-      expect(req.user).toEqual(mockUser);
-      expect(req.user.isRole('admin')).toBe(true); // Check role assignment
-      expect(next).toHaveBeenCalled();
-    });
-
-    it('should leave req.user undefined if token verification fails', async () => {
-        req.headers.authorization = `Bearer ${mockToken}`;
-        DB.isLoggedIn.mockResolvedValue(false); // Simulate that the token is not logged in
-      
-        await setAuthUser(req, res, next);
-      
-        expect(req.user).toBeUndefined(); // Check for undefined instead of null
-        expect(next).toHaveBeenCalled();
-    });
-
-    it('should set req.user to null if an error occurs in verification', async () => {
-      req.headers.authorization = `Bearer ${mockToken}`;
-      DB.isLoggedIn.mockRejectedValue(new Error('Database error')); // Simulate a DB error
-
-      await setAuthUser(req, res, next);
-
-      expect(req.user).toBeNull();
-      expect(next).toHaveBeenCalled();
-    });
-  });
-
-  describe('clearAuth', () => {
-    it('should call DB.logoutUser if token is present', async () => {
-      const mockToken = 'testToken';
-      req.headers = { authorization: `Bearer ${mockToken}` };
-      DB.logoutUser.mockResolvedValue();
-  
-      await clearAuth(req);
-  
-      expect(DB.logoutUser).toHaveBeenCalledWith(mockToken);
-    });
-  
-    it('should not call DB.logoutUser if token is missing', async () => {
-      req.headers = {}; // No token present
-  
-      await clearAuth(req);
-  
-      expect(DB.logoutUser).not.toHaveBeenCalled();
-    });
-  });
-  
-
-  describe('POST /api/auth (register)', () => {
-    it('should return 400 if name, email, or password is missing', async () => {
-      const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.post).route.stack[0].handle;
-      await handler(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'name, email, and password are required' });
-    });
-
-    it('should register a user and return a token', async () => {
-      req.body = { name: 'Test User', email: 'test@test.com', password: 'password' };
-      const mockUser = { id: 1, name: 'Test User', email: 'test@test.com', roles: [{ role: 'diner' }] };
-      const mockToken = 'testToken';
-      DB.addUser.mockResolvedValue(mockUser);
-      jwt.sign.mockReturnValue(mockToken);
-      DB.loginUser.mockResolvedValue();
-
-      const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.post).route.stack[0].handle;
-      await handler(req, res, next);
-
-      expect(res.json).toHaveBeenCalledWith({ user: mockUser, token: mockToken });
-    });
-  });
-
-  describe('PUT /api/auth (login)', () => {
-    it('should login an existing user and return a token', async () => {
-      req.body = { email: 'test@test.com', password: 'password' };
-      const mockUser = { id: 1, name: 'Test User', email: 'test@test.com', roles: [{ role: 'admin' }] };
-      const mockToken = 'testToken';
-      DB.getUser.mockResolvedValue(mockUser);
-      jwt.sign.mockReturnValue(mockToken);
-      DB.loginUser.mockResolvedValue();
-
-      const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.put).route.stack[0].handle;
-      await handler(req, res, next);
-
-      expect(res.json).toHaveBeenCalledWith({ user: mockUser, token: mockToken });
-    });
-  });
-
-  describe('DELETE /api/auth (logout)', () => {
-    it('should log out a user with a valid token', async () => {
-      req.user = { id: 1, roles: [{ role: 'admin' }] };
-      DB.logoutUser.mockResolvedValue();
-
-      const handler = authRouter.stack.find(r => r.route.path === '/' && r.route.methods.delete).route.stack[0].handle;
-      await handler(req, res, next);
-
-      expect(res.json).toHaveBeenCalledWith({ message: 'logout successful' });
-    });
-  });
-
-  describe('PUT /api/auth/:userId (update user)', () => {
-    it('should return 403 if user is not authorized to update', async () => {
-        req.user = { id: 2, roles: [{ role: 'diner' }], isRole: jest.fn((role) => role === 'admin' ? false : true) };
-        req.params = { userId: '1' }; // Target user ID does not match req.user.id
-        req.body = { email: 'newemail@test.com', password: 'newpassword' };
-    
-        const handler = authRouter.stack.find(r => r.route.path === '/:userId' && r.route.methods.put).route.stack[0].handle;
-        
-        // Debugging: log req.user and req.params
-        console.log('req.user:', req.user);
-        console.log('req.params:', req.params);
-    
-        await handler(req, res, next);
-    
-        expect(res.status).toHaveBeenCalledWith(403);
-        expect(res.json).toHaveBeenCalledWith({ message: 'unauthorized' });
-    });
-
-    it('should update user if authenticated and authorized', async () => {
-      req.user = { id: 1, roles: [{ role: 'admin' }] };
-      req.params = { userId: '1' };
-      req.body = { email: 'newemail@test.com' };
-
-      const updatedUser = { id: 1, email: 'newemail@test.com', roles: [{ role: 'admin' }] };
-      DB.updateUser.mockResolvedValue(updatedUser);
-
-      const handler = authRouter.stack.find(r => r.route.path === '/:userId' && r.route.methods.put).route.stack[0].handle;
-      await handler(req, res, next);
-
-      expect(res.json).toHaveBeenCalledWith(updatedUser);
-    });
-  });
+afterEach(() => {
+  jest.restoreAllMocks(); // Resets all mocks to avoid interference between tests
 });
+
+test('register a new user', async () => {
+  const newUser = { name: 'new diner', email: Math.random().toString(36).substring(2, 12) + '@test.com', password: 'password' };
+  const registerRes = await request(app).post('/api/auth').send(newUser);
+  expect(registerRes.status).toBe(200);
+  expectValidJwt(registerRes.body.token);
+  expect(registerRes.body.user).toMatchObject({ name: 'new diner', email: newUser.email, roles: [{ role: Role.Diner }] });
+});
+
+test('register user with missing fields', async () => {
+  const incompleteUser = { name: 'missing fields' }; // Missing email and password
+  const registerRes = await request(app).post('/api/auth').send(incompleteUser);
+  expect(registerRes.status).toBe(400);
+  expect(registerRes.body.message).toBe('name, email, and password are required');
+});
+
+test('login existing user', async () => {
+  const loginRes = await request(app).put('/api/auth').send(testUser);
+  expect(loginRes.status).toBe(200);
+  expectValidJwt(loginRes.body.token);
+
+  const expectedUser = { ...testUser, roles: [{ role: 'diner' }] };
+  delete expectedUser.password;
+  expect(loginRes.body.user).toMatchObject(expectedUser);
+});
+
+test('setAuthUser with valid token', async () => {
+  const validToken = jwt.sign({ id: 1, roles: [{ role: Role.Diner }] }, config.jwtSecret);
+  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(true);
+
+  const res = await request(app)
+    .put('/api/auth/1')
+    .set('Authorization', `Bearer ${validToken}`)
+    .send({ email: 'updated@test.com', password: 'newpassword' });
+
+  expect(res.status).toBe(200);
+  expect(res.body.id).toBe(1);
+  expect(res.body.email).toBe('updated@test.com');
+  expect(res.body.roles).toContainEqual({ role: Role.Diner });
+});
+
+test('setAuthUser with invalid token', async () => {
+  const invalidToken = 'invalid.token.here'; //random invalid token string
+
+  // Mock DB to simulate that the token is not logged in
+  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(true);
+
+  // Mock jwt.verify to throw an error, simulating an invalid token
+  jest.spyOn(jwt, 'verify').mockImplementation(() => {
+    throw new Error('Invalid token');
+  });
+
+  const res = await request(app)
+    .put('/api/auth/1')
+    .set('Authorization', `Bearer ${invalidToken}`)
+    .send({ email: 'updated@test.com', password: 'newpassword' });
+
+  expect(res.status).toBe(401);
+  expect(res.body.message).toBe('unauthorized');
+});
+
+
+test('logout user', async () => {
+  jest.spyOn(DB, 'logoutUser').mockResolvedValue(true);
+
+  const res = await request(app)
+    .delete('/api/auth')
+    .set('Authorization', `Bearer ${testUserAuthToken}`);
+
+  expect(res.status).toBe(200);
+  expect(res.body.message).toBe('logout successful');
+});
+
+test('update user with admin role', async () => {
+  const adminToken = jwt.sign({ id: 1, roles: [{ role: Role.Admin }] }, config.jwtSecret);
+  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(true);
+  jest.spyOn(DB, 'updateUser').mockResolvedValue({ id: 1, name: 'admin user', email: 'admin@test.com', roles: [{ role: Role.Admin }] });
+
+  const res = await request(app)
+    .put('/api/auth/1')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ email: 'admin@test.com', password: 'adminpassword' });
+
+  expect(res.status).toBe(200);
+  expect(res.body.email).toBe('admin@test.com');
+  expect(res.body.roles).toContainEqual({ role: Role.Admin });
+});
+
+// Test for unauthorized update attempt
+
+test('update user without admin privileges', async () => {
+  const nonAdminToken = jwt.sign({ id: 2, roles: [{ role: Role.Diner }] }, config.jwtSecret);
+  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(true);
+
+  const res = await request(app)
+    .put('/api/auth/1') // Attempting to update a different user
+    .set('Authorization', `Bearer ${nonAdminToken}`)
+    .send({ email: 'unauthorized@test.com', password: 'newpassword' });
+
+  expect(res.status).toBe(403);
+  expect(res.body.message).toBe('unauthorized');
+});
+
+// Simple test for authenticateToken middleware without user
+test('authenticateToken middleware without user', async () => {
+  console.log('Running authenticateToken middleware without user test');
+  
+  // Mock setAuthUser to simulate missing req.user
+  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(false); // Simulate that the user is not logged in
+
+  const invalidToken = jwt.sign({ id: 99 }, config.jwtSecret); // Generate a token that should fail
+  jest.spyOn(jwt, 'verify').mockImplementation(() => {
+    console.log('Mocking jwt.verify to return an invalid user');
+    return { id: 9999 }; // Mock user that does not exist in DB
+  });
+
+  const res = await request(app)
+    .put('/api/auth/1')
+    .set('Authorization', `Bearer ${invalidToken}`); // Provide an invalid token
+
+  console.log('Response status:', res.status);
+  console.log('Response body:', res.body);
+
+  expect(res.status).toBe(401);
+  expect(res.body.message).toBe('unauthorized');
+});
+
+
+function expectValidJwt(potentialJwt) {
+  expect(potentialJwt).toMatch(/^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/);
+}

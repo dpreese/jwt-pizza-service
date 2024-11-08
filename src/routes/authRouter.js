@@ -50,6 +50,7 @@ async function setAuthUser(req, res, next) {
       }
     } catch {
       req.user = null;
+      return res.status(401).send({ message: 'unauthorized' });
     }
   }
   next();
