@@ -48,7 +48,7 @@ jobs:
               connection: {
                 host: '127.0.0.1',
                 user: 'root',
-                password: 'Familyseven#7',
+                password: 'tempdbpassword',
                 database: 'pizza',
                 connectTimeout: 60000,
               },
