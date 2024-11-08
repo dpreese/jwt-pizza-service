@@ -3,6 +3,9 @@ const app = require('../service');
 const jwt = require('jsonwebtoken');
 const config = require('../config.js');
 const { DB, Role } = require('../database/database.js');
+const authRouterModule = require('../routes/authRouter'); // Adjust the path accordingly
+const authRouter = authRouterModule.authRouter;
+const authenticateToken = authRouter.authenticateToken;
 
 const testUser = { name: 'pizza diner', email: 'reg@test.com', password: 'a' };
 let testUserAuthToken;
@@ -14,6 +17,8 @@ beforeAll(async () => {
   
   expectValidJwt(testUserAuthToken);
 });
+
+
 
 afterEach(() => {
   jest.restoreAllMocks(); // Resets all mocks to avoid interference between tests
@@ -34,7 +39,7 @@ test('register user with missing fields', async () => {
   expect(registerRes.body.message).toBe('name, email, and password are required');
 });
 
-test('login existing user', async () => {
+test('login', async () => {
   const loginRes = await request(app).put('/api/auth').send(testUser);
   expect(loginRes.status).toBe(200);
   expectValidJwt(loginRes.body.token);
@@ -121,28 +126,24 @@ test('update user without admin privileges', async () => {
   expect(res.body.message).toBe('unauthorized');
 });
 
-// Simple test for authenticateToken middleware without user
-test('authenticateToken middleware without user', async () => {
+test('authenticateToken middleware without user', () => {
   console.log('Running authenticateToken middleware without user test');
-  
-  // Mock setAuthUser to simulate missing req.user
-  jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(false); // Simulate that the user is not logged in
 
-  const invalidToken = jwt.sign({ id: 99 }, config.jwtSecret); // Generate a token that should fail
-  jest.spyOn(jwt, 'verify').mockImplementation(() => {
-    console.log('Mocking jwt.verify to return an invalid user');
-    return { id: 9999 }; // Mock user that does not exist in DB
-  });
+  // Create mock request, response, and next objects
+  const req = {}; // req.user is undefined
+  const res = {
+    status: jest.fn().mockReturnThis(), // Allows chaining
+    send: jest.fn(),
+  };
+  const next = jest.fn();
 
-  const res = await request(app)
-    .put('/api/auth/1')
-    .set('Authorization', `Bearer ${invalidToken}`); // Provide an invalid token
+  // Call the middleware function
+  authenticateToken(req, res, next);
 
-  console.log('Response status:', res.status);
-  console.log('Response body:', res.body);
-
-  expect(res.status).toBe(401);
-  expect(res.body.message).toBe('unauthorized');
+  // Assertions
+  expect(res.status).toHaveBeenCalledWith(401);
+  expect(res.send).toHaveBeenCalledWith({ message: 'unauthorized' });
+  expect(next).not.toHaveBeenCalled();
 });
 
 
