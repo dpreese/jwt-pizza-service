@@ -9,6 +9,13 @@ class DB {
     this.initialized = this.initializeDatabase();
   }
 
+  async close() {
+    if (this.pool) {
+      await this.pool.end();
+    }
+    // Close any other connections if necessary
+  }
+
   async getMenu() {
     const connection = await this.getConnection();
     try {

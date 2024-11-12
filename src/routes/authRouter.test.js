@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../service');
+const app = require('../service'); // Ensure this points to your Express app
 const jwt = require('jsonwebtoken');
 const config = require('../config.js');
 const { DB, Role } = require('../database/database.js');
@@ -10,7 +10,15 @@ const authenticateToken = authRouter.authenticateToken;
 const testUser = { name: 'pizza diner', email: 'reg@test.com', password: 'a' };
 let testUserAuthToken;
 
+let db; // Will be initialized in beforeAll
+
 beforeAll(async () => {
+  db = DB; // Assign the imported DB instance to db
+
+  // Initialize the database (if required)
+  await db.initializeDatabase();
+
+  // Register the test user
   testUser.email = Math.random().toString(36).substring(2, 12) + '@test.com';
   const registerRes = await request(app).post('/api/auth').send(testUser);
   testUserAuthToken = registerRes.body.token;
@@ -18,10 +26,12 @@ beforeAll(async () => {
   expectValidJwt(testUserAuthToken);
 });
 
-
-
 afterEach(() => {
   jest.restoreAllMocks(); // Resets all mocks to avoid interference between tests
+});
+
+afterAll(async () => {
+  await db.close(); // Close database connections after all tests
 });
 
 test('register a new user', async () => {
@@ -50,16 +60,30 @@ test('login', async () => {
 });
 
 test('setAuthUser with valid token', async () => {
-  const validToken = jwt.sign({ id: 1, roles: [{ role: Role.Diner }] }, config.jwtSecret);
+  // Step 1: Create a user first
+  const user = {
+    name: 'Test User',
+    email: 'testuser@example.com',
+    password: 'password123',
+    roles: [{ role: Role.Diner }],
+  };
+  const addedUser = await db.addUser(user);
+
+  // Step 2: Create a valid token for this user
+  const validToken = jwt.sign({ id: addedUser.id, roles: [{ role: Role.Diner }] }, config.jwtSecret);
+
+  // Step 3: Mock DB.isLoggedIn to return true
   jest.spyOn(DB, 'isLoggedIn').mockResolvedValue(true);
 
+  // Step 4: Perform the update
   const res = await request(app)
-    .put('/api/auth/1')
+    .put(`/api/auth/${addedUser.id}`)
     .set('Authorization', `Bearer ${validToken}`)
     .send({ email: 'updated@test.com', password: 'newpassword' });
 
+  // Step 5: Expect success
   expect(res.status).toBe(200);
-  expect(res.body.id).toBe(1);
+  expect(res.body.id).toBe(addedUser.id);
   expect(res.body.email).toBe('updated@test.com');
   expect(res.body.roles).toContainEqual({ role: Role.Diner });
 });
@@ -83,7 +107,6 @@ test('setAuthUser with invalid token', async () => {
   expect(res.status).toBe(401);
   expect(res.body.message).toBe('unauthorized');
 });
-
 
 test('logout user', async () => {
   jest.spyOn(DB, 'logoutUser').mockResolvedValue(true);
