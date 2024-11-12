@@ -258,9 +258,9 @@ describe('DB.deleteFranchise', () => {
     const addedFranchise = await db.createFranchise(franchise);
 
     // Create a store under the franchise
-    const store = {
-      name: 'Test Store',
-    };
+    // const store = {
+    //   name: 'Test Store',
+    // };
     // const addedStore = await db.createStore(addedFranchise.id, store);
 
     // Verify that the franchise and store exist
@@ -293,10 +293,10 @@ describe('DB.deleteFranchise', () => {
     const addedFranchise = await db.createFranchise(franchise);
 
     // Create a store under the franchise
-    const store = {
-      name: 'Store to Delete with Error',
-    };
-    const addedStore = await db.createStore(addedFranchise.id, store);
+    // const store = {
+    //   name: 'Store to Delete with Error',
+    // };
+    // const addedStore = await db.createStore(addedFranchise.id, store);
 
     // Mock the query method to throw an error during deletion
     const originalQuery = db.query.bind(db);
