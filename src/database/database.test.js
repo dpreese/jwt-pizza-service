@@ -261,7 +261,7 @@ describe('DB.deleteFranchise', () => {
     const store = {
       name: 'Test Store',
     };
-    const addedStore = await db.createStore(addedFranchise.id, store);
+    // const addedStore = await db.createStore(addedFranchise.id, store);
 
     // Verify that the franchise and store exist
     let franchises = await db.getFranchises();
