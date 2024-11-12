@@ -6,11 +6,12 @@
   "scripts": {
     "start": "cd src && node index.js",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest --detectOpenHandles"
   },
   "license": "MIT",
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "cross-fetch": "^4.0.0",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.9.7"
