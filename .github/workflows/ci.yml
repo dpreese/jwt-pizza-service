@@ -39,7 +39,7 @@ jobs:
 
       - name: Lint
         run: npm run lint
-
+        
       - name: Write config file
         run: |
           echo "module.exports = {
@@ -57,6 +57,18 @@ jobs:
             factory: {
               url: 'https://pizza-factory.cs329.click',
               apiKey: '${{ secrets.FACTORY_API_KEY }}',
+            },
+            metrics: {
+              source: 'jwt-pizza-service',
+              userId: ${{ secrets.METRICS_USER_ID }},
+              url: '${{ secrets.METRICS_URL }}',
+              apiKey: '${{ secrets.METRICS_API_KEY }}',
+            },
+            logging:    {
+              source: 'jwt-pizza-service',
+              userId: ${{ secrets.LOGGING_USER_ID }},
+              url: '${{ secrets.LOGGING_URL }}',
+              apiKey: '${{ secrets.LOGGING_API_KEY }}',
             },
           };" > src/config.js
 
@@ -94,37 +106,7 @@ jobs:
         with:
           name: package
           path: dist/
-      - name: Write config file
-        run: |
-          echo "module.exports = {
-            jwtSecret: '${{ secrets.JWT_SECRET }}',
-            db: {
-              connection: {
-                host: '127.0.0.1',
-                user: 'root',
-                password: 'tempdbpassword',
-                database: 'pizza',
-                connectTimeout: 60000,
-              },
-              listPerPage: 10,
-            },
-            factory: {
-              url: 'https://pizza-factory.cs329.click',
-              apiKey: '${{ secrets.FACTORY_API_KEY }}',
-            },
-            metrics: {
-              source: 'jwt-pizza-service',
-              userId: ${{ secrets.METRICS_USER_ID }},
-              url: '${{ secrets.METRICS_URL }}',
-              apiKey: '${{ secrets.METRICS_API_KEY }}',
-            },
-            logging:    {
-              source: 'jwt-pizza-service',
-              userId: ${{ secrets.LOGGING_USER_ID }},
-              url: '${{ secrets.LOGGING_URL }}',
-              apiKey: '${{ secrets.LOGGING_API_KEY }}',
-            },
-          };" > src/config.js
+      
       - name: Annotate deployment in Grafana
         run: |
           curl -s -X POST https://derekpreese.grafana.net/api/annotations -H "Authorization: Bearer ${{ secrets.GRAFANA_ACCESS_TOKEN }}" -H "Content-Type:application/json" -d '{"dashboardUID":"de3oylivul3pcd", "panelId":1, "tags":["backend","production"], "text":"Version '"$version"' deployed" }'
