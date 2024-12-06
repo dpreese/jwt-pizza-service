@@ -5,6 +5,7 @@ const franchiseRouter = require('./routes/franchiseRouter.js');
 const version = require('./version.json');
 const config = require('./config.js');
 const metrics = require('./metrics.js');
+const logger = require('./logger.js');
 
 const app = express();
 app.use(express.json());
@@ -17,8 +18,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req,res,next)=>{
-  metrics.requestTracker(req)
+app.use((req, res, next) => {
+  metrics.requestTracker(req);
   if (req.user && req.user.id) {
     metrics.usersLoggedIn++;
   }
@@ -27,16 +28,15 @@ app.use((req,res,next)=>{
 
 app.use((req, res, next) => {
   const start = Date.now();
-  
 
   const originalSend = res.send;
   res.send = function (body) {
-    const duration = Date.now() - start; 
-    if (req.method == 'POST' && req.originalUrl == '/api/order'){
-      metrics.sendMetricToGrafana(`${'request'},source=${config.metrics.source},method=${'postPizza'} ${'pizzaTotalLatency'}=${duration}`);
+    const duration = Date.now() - start;
+    if (req.method === 'POST' && req.originalUrl === '/api/order') {
+      metrics.sendMetricToGrafana(`request,source=${config.metrics.source},method=postPizza pizzaTotalLatency=${duration}`);
     }
-    metrics.sendMetricToGrafana(`${'request'},source=${config.metrics.source},method=${req.method} ${'serviceLatency'}=${duration}`);
-    res.send = originalSend; 
+    metrics.sendMetricToGrafana(`request,source=${config.metrics.source},method=${req.method} serviceLatency=${duration}`);
+    res.send = originalSend;
     return res.send(body);
   };
   next();
@@ -69,8 +69,11 @@ app.use('*', (req, res) => {
   });
 });
 
+app.use(logger.httpLogger);
+
 // Default error handler for all exceptions and errors.
 app.use((err, req, res, next) => {
+  logger.logException(err, req); // Log unhandled exceptions here
   res.status(err.statusCode ?? 500).json({ message: err.message, stack: err.stack });
   next();
 });
