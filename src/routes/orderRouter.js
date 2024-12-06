@@ -3,6 +3,7 @@ const config = require('../config.js');
 const { Role, DB } = require('../database/database.js');
 const { authRouter } = require('./authRouter.js');
 const { asyncHandler, StatusCodeError } = require('../endpointHelper.js');
+const metrics = require('../metrics.js'); // Import the metrics module
 
 const orderRouter = express.Router();
 
@@ -78,7 +79,26 @@ orderRouter.post(
   authRouter.authenticateToken,
   asyncHandler(async (req, res) => {
     const orderReq = req.body;
+
+    metrics.totalOrders++; // Already incremented total orders
+
+    // Record the start time for latency measurement
+    const start = Date.now();
+
     const order = await DB.addDinerOrder(req.user, orderReq);
+    // On success:
+    const latencyMs = Date.now() - start;
+    // Record pizza creation latency
+    metrics.sendMetricToGrafana(`request,source=${config.metrics.source},method=postPizza pizzaCreationLatency=${latencyMs}`);
+
+    // Count pizzas sold and increment pizzas sold metric
+    const numPizzas = orderReq.items.length;
+    metrics.successfulOrders += numPizzas; // incrementing internal counter
+    // Add revenue
+    const revenue = orderReq.items.reduce((sum, item) => sum + item.price, 0);
+    metrics.revenue += revenue;
+
+    // Send order to the factory
     const r = await fetch(`${config.factory.url}/api/order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', authorization: `Bearer ${config.factory.apiKey}` },

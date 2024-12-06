@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config.js');
 const { asyncHandler } = require('../endpointHelper.js');
 const { DB, Role } = require('../database/database.js');
+const metrics = require('../metrics.js'); // Import metrics module
 
 const authRouter = express.Router();
 
@@ -64,7 +65,7 @@ authRouter.authenticateToken = (req, res, next) => {
   next();
 };
 
-// register
+// register (no authentication attempt metrics here)
 authRouter.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -78,18 +79,24 @@ authRouter.post(
   })
 );
 
-// login
+// login (add auth metrics here)
 authRouter.put(
   '/',
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
-    const user = await DB.getUser(email, password);
-    const auth = await setAuth(user);
-    res.json({ user: user, token: auth });
+    try {
+      const user = await DB.getUser(email, password);
+      const auth = await setAuth(user);
+      metrics.authSuccess++; // Successful login attempt
+      res.json({ user: user, token: auth });
+    } catch {
+      metrics.authFailures++; // Failed login attempt
+      res.status(400).json({ message: 'account not found' });
+    }
   })
 );
 
-// logout
+// logout (no authentication attempt metrics here)
 authRouter.delete(
   '/',
   asyncHandler(async (req, res) => {
@@ -98,7 +105,7 @@ authRouter.delete(
   })
 );
 
-// updateUser
+// updateUser (no authentication attempt metrics here)
 authRouter.put(
   '/:userId',
   asyncHandler(async (req, res) => {
