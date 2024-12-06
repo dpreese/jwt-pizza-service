@@ -54,30 +54,16 @@ class Logger {
 
   sendLogToGrafana(event) {
     const body = JSON.stringify(event);
-
-    const url = new URL(config.url);
-    const options = {
-      method: 'POST',
+    fetch(config.logging.url, {
+      method: 'post',
+      body: body,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.userId}:${config.apiKey}`,
+        Authorization: `Bearer ${config.logging.userId}:${config.logging.apiKey}`,
       },
-    };
-
-    const req = https.request(url, options, (res) => {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        console.log('Failed to send log to Grafana');
-      }
-      // No need to do anything on success, but you can if you want
-      res.on('data', () => {}); // consume response data to free memory
+    }).then((res) => {
+      if (!res.ok) console.log('Failed to send log to Grafana');
     });
-
-    req.on('error', (error) => {
-      console.error('Error pushing logs:', error);
-    });
-
-    req.write(body);
-    req.end();
   }
 
   // If you want to explicitly log DB queries, factory requests, or exceptions as before:

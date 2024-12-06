@@ -5,6 +5,7 @@ const { StatusCodeError } = require('../endpointHelper.js');
 const { Role } = require('../model/model.js');
 const dbModel = require('./dbModel.js');
 const logger = require('../logger.js'); // Add logger import
+const { stack } = require('../service.js');
 
 class DB {
   constructor() {
@@ -402,7 +403,7 @@ class DB {
         connection.end();
       }
     } catch (err) {
-      console.error(JSON.stringify({ message: 'Error initializing database', exception: err.message, connection: config.db.connection }));
+      console.error(JSON.stringify({ message: 'Error initializing database', exception: err.message, stack: err.stack, connection: config.db.connection }));
     }
   }
 
