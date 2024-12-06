@@ -5,7 +5,7 @@ const { StatusCodeError } = require('../endpointHelper.js');
 const { Role } = require('../model/model.js');
 const dbModel = require('./dbModel.js');
 const logger = require('../logger.js'); // Add logger import
-const { stack } = require('../service.js');
+// const { stack } = require('../service.js');
 
 class DB {
   constructor() {
@@ -96,7 +96,7 @@ class DB {
   async updateUser(userId, email, password) {
     const connection = await this.getConnection();
     try {
-      const params = [];
+      // const params = [];
       let updateSql = 'UPDATE user SET ';
       const updates = [];
       if (password) {
