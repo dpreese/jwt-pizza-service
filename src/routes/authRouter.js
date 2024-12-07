@@ -79,7 +79,7 @@ authRouter.post(
   })
 );
 
-// login (add auth metrics here)
+// login (add auth metrics here) funciton
 authRouter.put(
   '/',
   asyncHandler(async (req, res) => {
