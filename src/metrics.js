@@ -98,6 +98,9 @@ class Metrics{
       this.authMetrics(buffer);
       this.pizzaMetrics(buffer);
 
+      // ADDED: Capture chaos metrics
+      this.chaosMetrics(buffer);
+
       const metrics = buffer.getBatch();
       this.sendBatch(metrics);
     }, period);
@@ -145,7 +148,18 @@ class Metrics{
     const memoryUsage = (usedMemory / totalMemory) * 100;
     return memoryUsage.toFixed(2);
   }
+
+  // ADDED: Method to record chaos metrics
+  chaosMetrics(buffer) {
+    buffer.addMetric('request', 'chaos', 'enabled', this.chaosEnabled ? 1 : 0);
+  }
 }
 
 const metrics = new Metrics();
 module.exports = metrics;
+
+// ADDED: Initialize chaosEnabled and setter function
+metrics.chaosEnabled = false; // Track chaos state
+metrics.setChaos = function(state) {
+  this.chaosEnabled = state;
+};

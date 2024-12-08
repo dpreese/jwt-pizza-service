@@ -96,6 +96,19 @@ authRouter.put(
   })
 );
 
+authRouter.put(
+  '/chaos/:state',
+  authRouter.authenticateToken,
+  asyncHandler(async (req, res) => {
+    if (!req.user.isRole(Role.Admin)) {
+      throw new StatusCodeError('unknown endpoint', 404);
+    }
+
+    enableChaos = req.params.state === 'true';
+    res.json({ chaos: enableChaos });
+  })
+);
+
 // logout (no authentication attempt metrics here)
 authRouter.delete(
   '/',
