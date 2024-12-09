@@ -49,6 +49,9 @@ async function setAuthUser(req, res, next) {
         req.user = jwt.verify(token, config.jwtSecret);
         req.user.isRole = (role) => !!req.user.roles.find((r) => r.role === role);
       }
+      else {
+        throw new Error('Token not found or invalid');
+      }
     } catch {
       req.user = null;
       return res.status(401).send({ message: 'unauthorized' });
