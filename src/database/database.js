@@ -118,7 +118,6 @@ class DB {
   }
 
   async loginUser(userId, token) {
-    token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
       await this.query(connection, `INSERT INTO auth (token, userId) VALUES (?, ?)`, [token, userId]);
@@ -129,7 +128,6 @@ class DB {
   }
 
   async isLoggedIn(token) {
-    token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
       const authResult = await this.query(connection, `SELECT userId FROM auth WHERE token=?`, [token]);
@@ -141,11 +139,10 @@ class DB {
   }
 
   async logoutUser(token) {
-    token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
-      await this.query(connection, `DELETE FROM auth WHERE token=?`, [token]);
       logger.logDbQuery('DELETE FROM auth WHERE token=?');
+      await this.query(connection, `DELETE FROM auth WHERE token=?`, [token]);
     } finally {
       connection.end();
     }
@@ -354,10 +351,6 @@ class DB {
   }
 
   async _getConnection(setUse = true) {
-    console.log(config.db.connection.host);
-    console.log(config.db.connection.user);
-    console.log(config.db.connection.password);
-
     const connection = await mysql.createConnection({
       host: config.db.connection.host,
       user: config.db.connection.user,
@@ -376,35 +369,27 @@ class DB {
     try {
       const connection = await this._getConnection(false);
       try {
-        const dbExists = await this.checkDatabaseExists(connection);
-        console.log(dbExists ? 'Database exists' : 'Database does not exist, creating it');
-
         await connection.query(`CREATE DATABASE IF NOT EXISTS ${config.db.connection.database}`);
         logger.logDbQuery(`CREATE DATABASE IF NOT EXISTS ${config.db.connection.database}`);
-
         await connection.query(`USE ${config.db.connection.database}`);
         logger.logDbQuery(`USE ${config.db.connection.database}`);
-
-        if (!dbExists) {
-          console.log('Successfully created database');
-        }
-
         for (const statement of dbModel.tableCreateStatements) {
           await connection.query(statement);
-          // logger.logDbQuery(`Executing table create statement: ${statement}`)
-        }
-
-        if (!dbExists) {
-          const defaultAdmin = { name: '常用名字', email: 'a@jwt.com', password: 'admin', roles: [{ role: Role.Admin }] };
-          this.addUser(defaultAdmin);
-          // addUser logs queries internally
         }
       } finally {
         connection.end();
       }
     } catch (err) {
-      console.error(JSON.stringify({ message: 'Error initializing database', exception: err.message, stack: err.stack, connection: config.db.connection }));
+      console.error(JSON.stringify({ message: 'Error initializing database', exception: err.message }));
     }
+  }
+
+  getTokenSignature(token) {
+    const parts = token.split('.');
+    if (parts.length > 2) {
+      return parts[2];
+    }
+    return '';
   }
 
   async checkDatabaseExists(connection) {
