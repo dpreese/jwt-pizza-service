@@ -384,14 +384,6 @@ class DB {
     }
   }
 
-  getTokenSignature(token) {
-    const parts = token.split('.');
-    if (parts.length > 2) {
-      return parts[2];
-    }
-    return '';
-  }
-
   async checkDatabaseExists(connection) {
     const [rows] = await connection.execute(`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?`, [config.db.connection.database]);
     logger.logDbQuery('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?');

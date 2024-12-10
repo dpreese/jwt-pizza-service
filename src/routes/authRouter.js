@@ -44,16 +44,14 @@ async function setAuthUser(req, res, next) {
   const token = readAuthToken(req);
   if (token) {
     try {
-      if (await DB.isLoggedIn(token)) {
-        // Check the database to make sure the token is valid.
-        req.user = jwt.verify(token, config.jwtSecret);
-        req.user.isRole = (role) => !!req.user.roles.find((r) => r.role === role);
-      }
-      else {
+      if (!await DB.isLoggedIn(token)) {
         throw new Error('Token not found or invalid');
       }
-    } catch {
+      req.user = jwt.verify(token, config.jwtSecret);
+      req.user.isRole = (role) => !!req.user.roles.find((r) => r.role === role);
+    } catch (error) {
       req.user = null;
+      logger.logDbError('Authorization error', error);
       return res.status(401).send({ message: 'unauthorized' });
     }
   }
